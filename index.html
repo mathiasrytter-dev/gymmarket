@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymMarket – Gymnastics equipment marketplace</title>
+<meta name="description" content="Buy and sell new and used gymnastics equipment across Europe: AirTracks, trampolines, vaulting equipment and mats. Køb og sælg gymnastikredskaber.">
+<link rel="canonical" href="https://gymmarket.dk/">
+<link rel="alternate" hreflang="da" href="https://gymmarket.dk/?lang=da">
+<link rel="alternate" hreflang="en" href="https://gymmarket.dk/?lang=en">
+<link rel="alternate" hreflang="de" href="https://gymmarket.dk/?lang=de">
+<link rel="alternate" hreflang="sv" href="https://gymmarket.dk/?lang=sv">
+<link rel="alternate" hreflang="nb" href="https://gymmarket.dk/?lang=nb">
+<link rel="alternate" hreflang="fi" href="https://gymmarket.dk/?lang=fi">
+<link rel="alternate" hreflang="nl" href="https://gymmarket.dk/?lang=nl">
+<link rel="alternate" hreflang="fr" href="https://gymmarket.dk/?lang=fr">
+<link rel="alternate" hreflang="es" href="https://gymmarket.dk/?lang=es">
+<link rel="alternate" hreflang="it" href="https://gymmarket.dk/?lang=it">
+<link rel="alternate" hreflang="pl" href="https://gymmarket.dk/?lang=pl">
+<link rel="alternate" hreflang="x-default" href="https://gymmarket.dk/">
+<meta property="og:title" content="GymMarket">
+<meta property="og:description" content="The marketplace for gymnastics equipment in Europe.">
+<meta property="og:url" content="https://gymmarket.dk/">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css?v=1.1.0">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"GymMarket","url":"https://gymmarket.dk/","inLanguage":["da","en","de","sv","nb","fi","nl","fr","es","it","pl"]}</script>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <label><span data-i18n="lang_label">Language</span> <select id="langSel"></select></label>
+  <label><span data-i18n="cur_label">Show prices in</span> <select id="curSel"></select></label>
+</div></div>
+<div class="launch" id="launchBar"></div>
+
+<header>
+  <div class="wrap nav">
+    <a href="#" class="logo" aria-label="GymMarket">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="15" fill="#ff6b2c"/><path d="M8 21c3-8 13-8 16 0" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="10" r="3" fill="#fff"/></svg>
+      Gym<span>Market</span>
+    </a>
+    <nav class="menu" id="menu">
+      <a href="#annoncer" data-i18n="nav_buy"></a>
+      <a href="#soeges" data-i18n="nav_wanted"></a>
+      <a href="#mine" data-i18n="nav_mine"></a>
+      <a href="#priser" data-i18n="nav_pricing"></a>
+      <a href="#faq" data-i18n="nav_faq"></a>
+    </nav>
+    <button class="btn btn-primary" type="button" data-open="mSell" data-i18n="nav_sell"></button>
+    <button class="burger" type="button" id="burger" data-i18n-aria="menu" aria-expanded="false">☰</button>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <h1 data-i18n="hero_h1"></h1>
+    <p data-i18n="hero_p"></p>
+    <form class="search" id="heroSearch" role="search">
+      <input type="search" id="q" data-i18n-ph="search_ph" data-i18n-aria="search_btn">
+      <select id="qCountry" data-i18n-aria="country"></select>
+      <button class="btn btn-blue" type="submit" data-i18n="search_btn"></button>
+    </form>
+    <div class="stats">
+      <div><b id="statCount">0</b><span data-i18n="stat_active"></span></div>
+      <div><b id="statPrice">0</b><span id="statPriceTxt"></span></div>
+      <div><b id="statCountries">0</b><span data-i18n="stat_countries"></span></div>
+      <div><b id="statDays">60</b><span data-i18n="stat_days"></span></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="cats" id="cats"></div></div>
+
+<section id="annoncer">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><h2 data-i18n="listings_h"></h2><p class="sub" data-i18n="listings_sub"></p></div>
+      <span class="sub" id="resultCount" aria-live="polite"></span>
+    </div>
+    <div class="layout">
+      <aside class="filters" data-i18n-aria="filters">
+        <h4 data-i18n="sort"></h4>
+        <select id="fSort" data-i18n-aria="sort">
+          <option value="new" data-i18n="sort_new"></option>
+          <option value="low" data-i18n="sort_low"></option>
+          <option value="high" data-i18n="sort_high"></option>
+        </select>
+        <h4><label for="fMax" id="fMaxLabel"></label></h4>
+        <input type="number" id="fMax" min="0">
+        <h4 data-i18n="condition"></h4><div id="fConds"></div>
+        <h4 data-i18n="seller_type"></h4><div id="fSellers"></div>
+        <h4 data-i18n="delivery"></h4>
+        <label class="chk"><input type="checkbox" id="fTransport"> <span data-i18n="f_transport"></span></label>
+        <button class="btn btn-ghost" type="button" id="reset" style="width:100%;margin-top:16px" data-i18n="reset"></button>
+      </aside>
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</section>
+
+<section class="how">
+  <div class="wrap">
+    <div class="sec-head"><div><h2 data-i18n="how_h"></h2><p class="sub" data-i18n="how_sub"></p></div></div>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3 data-i18n="s1h"></h3><p data-i18n="s1p"></p></div>
+      <div class="step"><div class="n">2</div><h3 data-i18n="s2h"></h3><p data-i18n="s2p"></p></div>
+      <div class="step"><div class="n">3</div><h3 data-i18n="s3h"></h3><p data-i18n="s3p"></p></div>
+      <div class="step"><div class="n">4</div><h3 data-i18n="s4h"></h3><p data-i18n="s4p"></p></div>
+    </div>
+  </div>
+</section>
+
+<section id="soeges">
+  <div class="wrap">
+    <div class="sec-head">
+      <div><h2 data-i18n="wanted_h"></h2><p class="sub" data-i18n="wanted_sub"></p></div>
+      <button class="btn btn-blue" type="button" data-open="mWant" data-i18n="wanted_new"></button>
+    </div>
+    <div class="wanted-list" id="wanted"></div>
+  </div>
+</section>
+
+<section id="mine" style="background:#fff">
+  <div class="wrap" style="max-width:900px">
+    <div class="sec-head">
+      <div><h2 data-i18n="mine_h"></h2><p class="sub" data-i18n="mine_sub"></p></div>
+      <button class="btn btn-primary" type="button" data-open="mSell" data-i18n="mine_new"></button>
+    </div>
+    <div id="mineList"></div>
+  </div>
+</section>
+
+<section id="priser">
+  <div class="wrap" style="max-width:900px">
+    <div class="sec-head"><div><h2 data-i18n="pricing_h"></h2><p class="sub" data-i18n="pricing_sub"></p></div></div>
+    <div class="price-box">
+      <div class="price-banner" id="priceBanner"></div>
+      <table class="fees">
+        <thead><tr><th data-i18n="th_type"></th><th data-i18n="th_now"></th><th data-i18n="th_normal"></th></tr></thead>
+        <tbody id="feeRows"></tbody>
+      </table>
+      <div class="price-foot" id="priceFoot"></div>
+    </div>
+    <div class="price-notes">
+      <div class="note"><b data-i18n="note1_h"></b><span data-i18n="note1_p"></span></div>
+      <div class="note"><b data-i18n="note2_h"></b><span id="note2"></span></div>
+      <div class="note"><b data-i18n="note3_h"></b><span data-i18n="note3_p"></span></div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="fb">
+      <div><h3 data-i18n="fb_h"></h3><p data-i18n="fb_p"></p></div>
+      <button class="btn" type="button" data-open="mSell" data-i18n="fb_btn"></button>
+    </div>
+  </div>
+</section>
+
+<section id="faq" style="padding-top:20px">
+  <div class="wrap" style="max-width:820px">
+    <h2 style="margin-bottom:20px" data-i18n="faq_h"></h2>
+    <details><summary data-i18n="q_price"></summary><p id="faqPrice"></p></details>
+    <details><summary data-i18n="q_fee"></summary><p data-i18n="a_fee"></p></details>
+    <details><summary data-i18n="q_pay"></summary><p data-i18n="a_pay"></p></details>
+    <details><summary data-i18n="q_cross"></summary><p data-i18n="a_cross"></p></details>
+    <details><summary data-i18n="q_days"></summary><p id="faqDays"></p></details>
+    <details><summary data-i18n="q_edit"></summary><p data-i18n="a_edit"></p></details>
+    <details><summary data-i18n="q_rank"></summary><p data-i18n="a_rank"></p></details>
+    <details><summary data-i18n="q_who"></summary><p data-i18n="a_who"></p></details>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div><div class="logo" style="color:#fff">Gym<span>Market</span></div><p style="margin-top:10px;font-size:.92rem;max-width:320px" data-i18n="footer_tag"></p><div class="langs" id="footLangs"></div></div>
+      <div><h4 data-i18n="f_buy"></h4><a href="#annoncer" data-i18n="f_all"></a><a href="#soeges" data-i18n="nav_wanted"></a></div>
+      <div><h4 data-i18n="f_sell"></h4><button class="flink" type="button" data-open="mSell" data-i18n="fb_btn"></button><a href="#mine" data-i18n="nav_mine"></a><a href="#priser" data-i18n="nav_pricing"></a></div>
+      <div><h4>GymMarket</h4><a href="#faq" data-i18n="nav_faq"></a><a href="mailto:kontakt@gymmarket.dk">kontakt@gymmarket.dk</a><button class="flink" type="button" data-open="mTerms" data-i18n="terms"></button><button class="flink" type="button" data-open="mPrivacy" data-i18n="privacy"></button><button class="flink" type="button" data-report="" data-i18n="report_content"></button></div>
+    </div>
+    <div class="copy">© <span id="yr"></span> GymMarket · gymmarket.dk · CVR: [indsættes] · v<span id="ver"></span></div>
+  </div>
+</footer>
+
+<div class="modal" id="mDetail" role="dialog" aria-modal="true">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button><div id="detail"></div></div>
+</div>
+
+<div class="modal" id="mSell" role="dialog" aria-modal="true" aria-labelledby="sellH">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent">
+      <h2 id="sellH" data-i18n="sell_h"></h2><p class="sub" style="margin-bottom:18px" data-i18n="req_note"></p>
+      <form id="sellForm" class="form-grid" novalidate>
+        <div class="full"><label class="l" for="sTitle" data-i18n="l_title"></label><input id="sTitle" required minlength="3" maxlength="80" data-i18n-ph="ph_title"></div>
+        <div><label class="l" for="sCat" data-i18n="l_cat"></label><select id="sCat" required></select></div>
+        <div><label class="l" for="sBrand" data-i18n="l_brand"></label><input id="sBrand" maxlength="60" data-i18n-ph="ph_brand"></div>
+        <div><label class="l" for="sYear" data-i18n="l_year"></label><input id="sYear" type="number" min="1970" max="2030"></div>
+        <div><label class="l" for="sCond" data-i18n="l_cond"></label><select id="sCond" required></select></div>
+        <div><label class="l" for="sCountry" data-i18n="l_country"></label><select id="sCountry" required></select></div>
+        <div><label class="l" for="sCurrency" data-i18n="l_currency"></label><select id="sCurrency" required></select></div>
+        <div><label class="l" for="sPrice" data-i18n="l_price"></label><input id="sPrice" type="number" min="0" max="100000000" required></div>
+        <div><label class="l" for="sNew" data-i18n="l_new"></label><input id="sNew" type="number" min="0" max="100000000"></div>
+        <div class="full"><div class="fee-live" id="feeLive" aria-live="polite"></div></div>
+        <div><label class="l" for="sCity" data-i18n="l_city"></label><input id="sCity" required maxlength="60"></div>
+        <div><label class="l" for="sPost" data-i18n="l_postcode"></label><input id="sPost" maxlength="12"></div>
+        <div class="full"><label class="l" for="sDesc" data-i18n="l_desc"></label><textarea id="sDesc" maxlength="3000" data-i18n-ph="ph_desc"></textarea></div>
+        <div class="full"><label class="l" for="sImgs" data-i18n="l_imgs"></label><input id="sImgs" type="file" accept="image/*" multiple><div class="previews" id="previews"></div></div>
+        <div><label class="l" for="sSeller" data-i18n="l_seller"></label><select id="sSeller" required></select></div>
+        <div><label class="l" for="sName" data-i18n="l_name"></label><input id="sName" required maxlength="80"></div>
+        <div><label class="l" for="sEmail" data-i18n="l_email"></label><input id="sEmail" type="email" required maxlength="120"></div>
+        <div><label class="l" for="sPhone" data-i18n="l_phone"></label><input id="sPhone" type="tel" maxlength="24"></div>
+        <div class="full"><label class="chk"><input type="checkbox" id="sTransport"> <span data-i18n="l_transport"></span></label></div>
+        <div class="full"><label class="chk"><input type="checkbox" id="sTrader"> <span data-i18n="l_is_trader"></span></label></div>
+        <div class="full trader-box" id="traderBox" hidden>
+          <p class="full sub" style="font-size:.86rem" data-i18n="trader_help"></p>
+          <div><label class="l" for="sCompany" data-i18n="l_company"></label><input id="sCompany" maxlength="120"></div>
+          <div><label class="l" for="sVat" data-i18n="l_vat"></label><input id="sVat" maxlength="40"></div>
+          <div class="full"><label class="l" for="sAddress" data-i18n="l_address"></label><input id="sAddress" maxlength="200"></div>
+        </div>
+        <div class="full"><label class="chk"><input type="checkbox" id="sTerms" required> <span data-i18n="l_terms"></span>&nbsp;(<button type="button" class="link" data-open="mTerms" data-i18n="terms"></button>)</label></div>
+        <div class="full form-err" id="sellErr" aria-live="assertive"></div>
+        <div class="full"><button class="btn btn-primary" type="submit" id="sellBtn" style="width:100%"></button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mWant" role="dialog" aria-modal="true" aria-labelledby="wantH">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent">
+      <h2 id="wantH" data-i18n="want_h"></h2><p class="sub" style="margin-bottom:18px" data-i18n="want_sub"></p>
+      <form id="wantForm" class="form-grid" novalidate>
+        <div class="full"><label class="l" for="wTitle" data-i18n="w_title"></label><input id="wTitle" required minlength="3" maxlength="80" data-i18n-ph="w_ph"></div>
+        <div><label class="l" for="wBudget" data-i18n="w_budget"></label><input id="wBudget" maxlength="40"></div>
+        <div><label class="l" for="wArea" data-i18n="w_area"></label><input id="wArea" maxlength="40"></div>
+        <div><label class="l" for="wName" data-i18n="w_name"></label><input id="wName" required maxlength="80"></div>
+        <div><label class="l" for="wEmail" data-i18n="w_email"></label><input id="wEmail" type="email" required maxlength="120"></div>
+        <div class="full form-err" id="wantErr" aria-live="assertive"></div>
+        <div class="full"><button class="btn btn-blue" type="submit" id="wantBtn" style="width:100%" data-i18n="w_btn"></button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mReport" role="dialog" aria-modal="true" aria-labelledby="repH">
+  <div class="mbox sm"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent">
+      <h2 id="repH" data-i18n="rep_h"></h2><p class="sub" style="margin-bottom:18px" data-i18n="rep_sub"></p>
+      <form id="repForm" class="form-grid" novalidate>
+        <input type="hidden" id="rListing">
+        <div class="full"><label class="l" for="rReason" data-i18n="rep_reason"></label>
+          <select id="rReason" required>
+            <option value="illegal" data-i18n="r_illegal"></option><option value="unsafe" data-i18n="r_unsafe"></option>
+            <option value="misleading" data-i18n="r_misleading"></option><option value="ip" data-i18n="r_ip"></option><option value="other" data-i18n="r_other"></option>
+          </select></div>
+        <div class="full"><label class="l" for="rDetails" data-i18n="rep_details"></label><textarea id="rDetails" required minlength="10" maxlength="2000"></textarea></div>
+        <div class="full"><label class="l" for="rEmail" data-i18n="rep_email"></label><input id="rEmail" type="email" required maxlength="120"></div>
+        <div class="full"><label class="chk"><input type="checkbox" id="rGood" required> <span data-i18n="rep_good_faith"></span></label></div>
+        <div class="full form-err" id="repErr" aria-live="assertive"></div>
+        <div class="full"><button class="btn btn-primary" type="submit" id="repBtn" style="width:100%" data-i18n="rep_btn"></button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mPay" role="dialog" aria-modal="true">
+  <div class="mbox sm"><button class="mclose" type="button" data-close aria-label="×">×</button><div class="mcontent" id="payBody"></div></div>
+</div>
+
+<div class="modal" id="mTerms" role="dialog" aria-modal="true">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent"><h2 data-i18n="terms"></h2><p style="margin-top:8px"><em class="legalnote"></em></p><div data-i18n-html="terms_html"></div></div>
+  </div>
+</div>
+<div class="modal" id="mPrivacy" role="dialog" aria-modal="true">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent"><h2 data-i18n="privacy"></h2><p style="margin-top:8px"><em class="legalnote"></em></p><div data-i18n-html="privacy_html"></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/config.js?v=1.1.0"></script>
+<script src="assets/i18n.js?v=1.1.0"></script>
+<script src="assets/data-demo.js?v=1.1.0"></script>
+<script src="assets/store.js?v=1.1.0"></script>
+<script src="assets/app.js?v=1.1.0"></script>
+<script src="assets/fb-import.js?v=1.1.0"></script>
+</body>
+</html>

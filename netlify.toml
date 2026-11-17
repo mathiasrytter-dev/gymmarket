@@ -1,0 +1,25 @@
+# Netlify-opsætning for GymMarket (ingen build – ren statisk side)
+[build]
+  publish = "."
+
+# Sikkerhedsheaders
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# HTML hentes altid frisk, så opdateringer slår igennem med det samme
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Filer der ikke skal ud på nettet
+[[redirects]]
+  from = "/supabase/*"
+  to = "/404"
+  status = 404
+  force = true
