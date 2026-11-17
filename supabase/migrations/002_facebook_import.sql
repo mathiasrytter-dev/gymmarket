@@ -1,6 +1,12 @@
--- GymMarket – 002: link til Facebook-opslag ved import
-alter table listings add column if not exists source_url text
-  check (source_url is null or source_url ~* '^https://([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me|fb\.watch)/');
+-- =============================================================
+-- GymMarket – 002: Facebook-import (link til opslag) + create_listing
+-- Kan køres igen uden at slette data.
+-- =============================================================
+alter table listings add column if not exists source_url text;
+do $$ begin
+  alter table listings add constraint listings_source_url_fb
+    check (source_url is null or source_url ~* '^https://([a-z0-9-]+\.)*(facebook\.com|fb\.com|fb\.me|fb\.watch)/');
+exception when duplicate_object then null; end $$;
 grant select (source_url) on listings to anon, authenticated;
 
 create or replace function create_listing(p jsonb, p_token uuid) returns json
@@ -23,4 +29,3 @@ begin
   returning * into r;
   return json_build_object('id', r.id, 'status', r.status, 'fee_charged', r.fee_charged, 'fee_currency', r.fee_currency);
 end $$;
-grant execute on function create_listing(jsonb, uuid) to anon, authenticated;
