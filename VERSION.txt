@@ -1,3 +1,3 @@
-GymMarket – samlet version 3
-Kendetegn: ingen lanceringsbjælke, "Log ind"-knap, Facebook-import, EU-verificering, testmiljø.
-Tjek på github.com: index.html skal indeholde "fb-import.js?v=3".
+GymMarket – opdatering 4
+Nyt: mail med kode, profilbillede, indbakke til henvendelser. Eksempelannoncer og testmærkat er fjernet.
+Tjek på github.com: index.html skal indeholde "i18n-inbox.js?v=4".

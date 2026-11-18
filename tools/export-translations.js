@@ -1,6 +1,5 @@
 /* Eksporterer alle tekster til regneark, som oversætterne kan rette i.
-   Kør:  node tools/export-translations.js
-   Resultat: oversaettelse/<sprog>.csv  (åbnes direkte i Excel) */
+   Kør:  node tools/export-translations.js   ->  oversaettelse/<sprog>.csv (åbnes i Excel) */
 const fs = require("fs"), path = require("path");
 const root = path.join(__dirname, "..");
 global.window = {}; global.GM_I18N = {}; window.GM_I18N = global.GM_I18N;
@@ -8,6 +7,7 @@ global.document = { readyState: "complete", documentElement: { lang: "da" }, add
 global.setTimeout = () => {};
 for (const f of fs.readdirSync(path.join(root, "assets/i18n"))) eval(fs.readFileSync(path.join(root, "assets/i18n", f), "utf8"));
 eval(fs.readFileSync(path.join(root, "assets/i18n-verify.js"), "utf8"));
+eval(fs.readFileSync(path.join(root, "assets/i18n-inbox.js"), "utf8"));
 try { eval(fs.readFileSync(path.join(root, "assets/i18n-overrides.js"), "utf8")); } catch (e) {}
 eval(fs.readFileSync(path.join(root, "assets/fb-import.js"), "utf8"));
 const V = window.GM_I18N_VERIFY, F = window.GM_FB_I18N, O = window.GM_I18N_OVERRIDES || {};

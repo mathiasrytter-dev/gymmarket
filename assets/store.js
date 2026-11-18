@@ -1,32 +1,16 @@
 /* ============================================================
-   Datalag med brugere.
-   Miljøer:
-     drift  = backend.supabaseUrl / supabaseAnonKey
-     test   = backend.test.* – bruges automatisk på localhost/127.0.0.1/fil,
-              eller når siden åbnes med ?env=test (huskes i fanen).
-              ?env=prod slår test fra igen.
-   Verificering i to trin – gælder alle 31 lande:
-     1. E-mail bekræftet
-     2. Verificeret organisation (land + nummertype + nummer)
+   Datalag med brugere, e-mailkode, profilbillede og indbakke.
+   "supabase" (drift): rigtige brugere. Koden sendes som mail af Supabase Auth.
+   "local" (prototype): alt gemmes i denne browser, og koden vises på skærmen.
    ============================================================ */
 (function () {
   const C = window.GM_CONFIG, Reg = window.GMReg;
-  const DAY = 864e5;
+  const DAY = 864e5, HOUR = 36e5;
   const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
     : "id-" + Date.now().toString(36) + Math.random().toString(36).slice(2);
   const err = (key, vars) => { const e = new Error(key); e.i18n = key; e.vars = vars; return e; };
   const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
-
-  /* ---------- Miljø ---------- */
-  function pickEnv() {
-    const q = new URLSearchParams(location.search).get("env");
-    try { if (q === "test") sessionStorage.setItem("gm_env", "test"); if (q === "prod") sessionStorage.removeItem("gm_env"); } catch (e) { }
-    let forced = null; try { forced = sessionStorage.getItem("gm_env"); } catch (e) { }
-    const localHost = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-    return (forced === "test" || (localHost && q !== "prod")) ? "test" : "prod";
-  }
-  const ENV = pickEnv();
 
   function tierFor(rows, currency, price) {
     let list = rows.filter(r => r.currency === currency);
@@ -47,7 +31,7 @@
   const publicProfile = u => u && ({
     id: u.id, email: u.email, name: u.name, user_type: u.user_type, org_name: u.org_name, country: u.country, phone: u.phone,
     is_trader: u.is_trader, trader_company: u.trader_company, trader_vat: u.trader_vat, trader_address: u.trader_address,
-    email_verified: !!u.email_verified, org_status: u.org_status || "none",
+    avatar_url: u.avatar_url || "", email_verified: !!u.email_verified, org_status: u.org_status || "none",
     org_country: u.org_country || "", org_id_type: u.org_id_type || "", org_number: u.org_number || "", created_at: u.created_at
   });
   const displayName = u => (u.user_type !== "private" && u.org_name) ? u.org_name : u.name;
@@ -62,6 +46,7 @@
     const K = { users: "gm_users_v1", sess: "gm_session_v1", db: "gm_db_v3" };
     let users = lsGet(K.users, []);
     let db = lsGet(K.db, { listings: [], wanted: [], reports: [], payments: [] });
+    db.conversations = db.conversations || []; db.messages = db.messages || [];
     const saveUsers = () => lsSet(K.users, users);
     const saveDb = () => lsSet(K.db, db);
     const findUser = id => users.find(u => u.id === id);
@@ -73,7 +58,7 @@
     const withSeller = l => {
       const u = findUser(l.owner_id) || {};
       return Object.assign({}, l, {
-        seller_name: displayName(u), seller_type: u.user_type, contact_email: u.email, contact_phone: u.phone,
+        seller_id: l.owner_id, seller_avatar: u.avatar_url || "", seller_name: displayName(u), seller_type: u.user_type, contact_phone: u.phone,
         is_trader: !!u.is_trader, trader_company: u.trader_company, trader_vat: u.trader_vat, trader_address: u.trader_address,
         seller_verified: u.org_status === "approved", org_country: u.org_country, org_id_type: u.org_id_type
       });
@@ -84,10 +69,20 @@
       if (paidIn(l.country)) { l.status = "afventer_betaling"; l.fee_charged = t.amount; } else { l.fee_charged = 0; activate(l); }
     };
     const needUser = verified => { const u = me(); if (!u) throw err("login_required"); if (verified && !u.email_verified) throw err("err_unverified"); return u; };
+    const mine = (c, u) => c.starter_id === u.id || c.owner_id === u.id;
+    const summary = (c, u) => {
+      const o = findUser(c.starter_id === u.id ? c.owner_id : c.starter_id) || {};
+      const msgs = db.messages.filter(m => m.conversation_id === c.id), last = msgs[msgs.length - 1];
+      return { id: c.id, subject: c.subject, listing_id: c.listing_id, wanted_id: c.wanted_id,
+        other_name: displayName(o), other_avatar: o.avatar_url || "", other_verified: o.org_status === "approved",
+        last_body: last ? last.body : "", last_at: c.last_message_at, last_from_me: !!last && last.sender_id === u.id,
+        unread: msgs.filter(m => m.sender_id !== u.id && !m.read_at).length };
+    };
+    const rateCheck = u => { if (db.messages.filter(m => m.sender_id === u.id && Date.now() - Date.parse(m.created_at) < HOUR).length >= 20) throw err("msg_err_rate"); };
 
     return {
-      mode: "local", env: ENV,
-      async init() { sweep(); saveDb(); return { settings, markets: {}, tierPrices: C.tierPrices }; },
+      mode: "local",
+      async init() { sweep(); saveDb(); return { settings, markets: {} }; },
       user() { return publicProfile(me()); },
       async signup(d) {
         const email = d.email.trim().toLowerCase();
@@ -117,6 +112,11 @@
         saveUsers(); return publicProfile(u);
       },
       async approveDemo() { const u = needUser(true); u.org_status = "approved"; saveUsers(); return publicProfile(u); },
+      async setAvatar(dataUrl) {
+        const u = needUser(true), old = u.avatar_url; u.avatar_url = dataUrl || "";
+        if (!saveUsers()) { u.avatar_url = old; throw err("avatar_err"); }
+        return publicProfile(u);
+      },
       async listings() { sweep(); return db.listings.filter(l => l.status === "aktiv").map(withSeller); },
       async listing(id) { const l = db.listings.find(x => x.id === id && x.status === "aktiv"); return l ? withSeller(l) : null; },
       async createListing(data) {
@@ -134,7 +134,7 @@
         const now = Date.now();
         return db.wanted.filter(w => Date.parse(w.expires_at) > now).map(w => {
           const u = findUser(w.owner_id) || {};
-          return Object.assign({}, w, { name: displayName(u), contact_email: u.email, verified: u.org_status === "approved" });
+          return Object.assign({}, w, { name: displayName(u), verified: u.org_status === "approved", seller_id: w.owner_id, seller_avatar: u.avatar_url || "" });
         });
       },
       async addWanted(w) {
@@ -142,31 +142,76 @@
         db.wanted.unshift(Object.assign({}, w, { id: uid(), owner_id: u.id, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + C.wantedDays * DAY).toISOString() }));
         saveDb();
       },
-      async report(r) { db.reports.push(Object.assign({ id: uid(), created_at: new Date().toISOString(), status: "ny" }, r)); saveDb(); }
+      async report(r) { db.reports.push(Object.assign({ id: uid(), created_at: new Date().toISOString(), status: "ny" }, r)); saveDb(); },
+
+      /* ---- Indbakke ---- */
+      async sendMessage(d) {
+        const u = needUser(true), body = String(d.body || "").trim();
+        if (!body) throw err("msg_err_empty");
+        const target = d.listing_id ? db.listings.find(l => l.id === d.listing_id && l.status === "aktiv") : db.wanted.find(w => w.id === d.wanted_id);
+        if (!target) throw err("not_found");
+        if (target.owner_id === u.id) throw err("msg_err_self");
+        rateCheck(u);
+        let c = db.conversations.find(x => x.starter_id === u.id && (d.listing_id ? x.listing_id === d.listing_id : x.wanted_id === d.wanted_id));
+        const now = new Date().toISOString();
+        if (!c) { c = { id: uid(), listing_id: d.listing_id || null, wanted_id: d.wanted_id || null, subject: target.title, starter_id: u.id, owner_id: target.owner_id, created_at: now, last_message_at: now }; db.conversations.unshift(c); }
+        db.messages.push({ id: uid(), conversation_id: c.id, sender_id: u.id, body: body.slice(0, 2000), created_at: now, read_at: null });
+        c.last_message_at = now;
+        if (!saveDb()) throw err("err_storage");
+        return { conversation_id: c.id };
+      },
+      async conversations() {
+        const u = needUser();
+        return db.conversations.filter(c => mine(c, u)).sort((a, b) => Date.parse(b.last_message_at) - Date.parse(a.last_message_at)).map(c => summary(c, u));
+      },
+      async thread(id) {
+        const u = needUser(), c = db.conversations.find(x => x.id === id);
+        if (!c || !mine(c, u)) throw err("no_access");
+        const now = new Date().toISOString();
+        db.messages.forEach(m => { if (m.conversation_id === id && m.sender_id !== u.id && !m.read_at) m.read_at = now; }); saveDb();
+        return Object.assign(summary(c, u), { messages: db.messages.filter(m => m.conversation_id === id).map(m => ({ id: m.id, mine: m.sender_id === u.id, body: m.body, created_at: m.created_at })) });
+      },
+      async reply(id, body) {
+        const u = needUser(true), c = db.conversations.find(x => x.id === id);
+        if (!c || !mine(c, u)) throw err("no_access");
+        body = String(body || "").trim(); if (!body) throw err("msg_err_empty");
+        rateCheck(u);
+        const now = new Date().toISOString();
+        db.messages.push({ id: uid(), conversation_id: id, sender_id: u.id, body: body.slice(0, 2000), created_at: now, read_at: null });
+        c.last_message_at = now; saveDb();
+      },
+      async unreadCount() {
+        const u = me(); if (!u) return 0;
+        const ids = new Set(db.conversations.filter(c => mine(c, u)).map(c => c.id));
+        return db.messages.filter(m => ids.has(m.conversation_id) && m.sender_id !== u.id && !m.read_at).length;
+      }
     };
   }
 
-  /* ======================= SUPABASE (drift / test) ======================= */
+  /* ======================= SUPABASE (drift) ======================= */
   function SupabaseStore(url, anon) {
     url = url.replace(/\/$/, "");
-    const SK = "gm_sb_session_" + ENV;
+    const SK = "gm_sb_session";
     let session = lsGet(SK, null), profile = null;
-    const LCOLS = "id,created_at,lang,title,category,brand,year,condition,price,currency,new_price,city,postcode,country,description,transport,images,status,expires_at,seller_name,seller_type,contact_email,contact_phone,is_trader,trader_company,trader_vat,trader_address,seller_verified,org_country,org_id_type";
+    const LCOLS = "id,created_at,lang,title,category,brand,year,condition,price,currency,new_price,city,postcode,country,description,transport,images,status,expires_at,seller_id,seller_avatar,seller_name,seller_type,contact_phone,is_trader,trader_company,trader_vat,trader_address,seller_verified,org_country,org_id_type";
 
+    function mapAuthError(status, j) {
+      const code = (j.error_code || j.code || "").toString().toLowerCase(), m = (j.msg || j.error_description || j.message || "").toLowerCase();
+      if (code === "email_not_confirmed" || m.includes("not confirmed")) return err("email_not_confirmed");
+      if (code === "invalid_credentials" || m.includes("invalid login")) return err("err_login");
+      if (code === "user_already_exists" || code === "email_exists" || m.includes("already")) return err("err_exists");
+      if (code === "weak_password" || m.includes("password")) return err("err_pw");
+      if (code === "otp_expired" || m.includes("expired or is invalid") || m.includes("otp")) return err("err_code");
+      if (status === 429 || code.startsWith("over_") || m.includes("rate limit")) return err("err_rate_email");
+      return err("err_generic");
+    }
     async function authFetch(path, body) {
       const r = await fetch(url + "/auth/v1/" + path, { method: "POST", headers: { apikey: anon, "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const m = (j.msg || j.error_description || j.message || "").toLowerCase();
-        if (m.includes("not confirmed")) throw err("email_not_confirmed");
-        if (m.includes("already")) throw err("err_exists");
-        if (m.includes("invalid login")) throw err("err_login");
-        if (m.includes("password")) throw err("err_pw");
-        throw err("err_generic");
-      }
+      if (!r.ok) throw mapAuthError(r.status, j);
       return j;
     }
-    const setSession = j => { session = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in - 60) * 1000 }; lsSet(SK, session); };
+    const setSession = j => { session = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + ((j.expires_in || 3600) - 60) * 1000 }; lsSet(SK, session); };
     async function token() {
       if (!session) return null;
       if (Date.now() > session.expires_at) {
@@ -187,6 +232,10 @@
         if (/Ingen adgang/.test(txt)) e.i18n = "no_access";
         if (/Log ind/.test(txt)) e.i18n = "login_required";
         if (/Ugyldigt format/.test(txt)) e.i18n = "err_id_format";
+        if (/Egen annonce/.test(txt)) e.i18n = "msg_err_self";
+        if (/For mange beskeder/.test(txt)) e.i18n = "msg_err_rate";
+        if (/Tom besked/.test(txt)) e.i18n = "msg_err_empty";
+        if (/Ikke fundet/.test(txt)) e.i18n = "not_found";
         throw e;
       }
       return txt ? JSON.parse(txt) : null;
@@ -198,46 +247,57 @@
       profile = r ? Object.assign({ email_verified: true }, r) : null;
       return profile;
     }
-    async function upload(dataUrl) {
-      const blob = await (await fetch(dataUrl)).blob(), name = (profile ? profile.id + "/" : "") + uid() + ".jpg";
-      const r = await fetch(url + "/storage/v1/object/annoncebilleder/" + name, {
+    async function upload(bucket, path, dataUrl) {
+      const blob = await (await fetch(dataUrl)).blob();
+      const r = await fetch(url + "/storage/v1/object/" + bucket + "/" + path, {
         method: "POST", headers: { apikey: anon, Authorization: "Bearer " + await token(), "Content-Type": "image/jpeg" }, body: blob
       });
-      if (!r.ok) throw err("err_img");
-      return url + "/storage/v1/object/public/annoncebilleder/" + name;
+      if (!r.ok) throw err(bucket === "avatars" ? "avatar_err" : "err_img");
+      return url + "/storage/v1/object/public/" + bucket + "/" + path;
     }
-    const redirect = encodeURIComponent(location.origin + location.pathname);
+    const uidn = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
     return {
-      mode: "supabase", env: ENV,
+      mode: "supabase",
       async init() {
-        const h = new URLSearchParams(location.hash.slice(1));
-        if (h.get("access_token")) {
-          setSession({ access_token: h.get("access_token"), refresh_token: h.get("refresh_token"), expires_in: Number(h.get("expires_in") || 3600) });
-          history.replaceState(null, "", location.pathname + location.search);
-        }
         await loadProfile().catch(() => null);
         const res = await Promise.all([api("/rest/v1/settings?select=payments_enabled,listing_days&id=eq.1"), api("/rest/v1/markets?select=country,payments_enabled")]);
         const markets = {}; res[1].forEach(m => markets[m.country] = m);
         return { settings: res[0][0], markets };
       },
       user() { return profile; },
+
+      // Oprettelse: Supabase sender en mail med en 6-cifret kode (skabelonen "Confirm sign up" skal indeholde {{ .Token }})
       async signup(d) {
-        const r = await fetch(url + "/auth/v1/signup?redirect_to=" + redirect, {
+        const r = await fetch(url + "/auth/v1/signup", {
           method: "POST", headers: { apikey: anon, "Content-Type": "application/json" },
           body: JSON.stringify({ email: d.email.trim(), password: d.password, data: {
             name: d.name, user_type: d.user_type, org_name: d.org_name, country: d.country, phone: d.phone,
             is_trader: d.is_trader, trader_company: d.trader_company, trader_vat: d.trader_vat, trader_address: d.trader_address } })
         });
-        if (!r.ok) { const j = await r.json().catch(() => ({})); const m = (j.msg || j.message || "").toLowerCase(); throw err(m.includes("already") ? "err_exists" : m.includes("password") ? "err_pw" : "err_generic"); }
-        return { needsLink: true, email: d.email.trim() };
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw mapAuthError(r.status, j);
+        // Er adressen allerede i brug, returnerer Supabase en bruger uden identiteter (og sender ingen kode)
+        const ids = Array.isArray(j.identities) ? j.identities : (j.user && Array.isArray(j.user.identities) ? j.user.identities : null);
+        if (ids && ids.length === 0) throw err("err_exists");
+        if (j.access_token) { setSession(j); await loadProfile(); return { user: profile }; }
+        return { needsCode: true, email: d.email.trim() };
       },
       async login(email, pw) {
         try { setSession(await authFetch("token?grant_type=password", { email: email.trim(), password: pw })); }
-        catch (e) { if (e.i18n === "email_not_confirmed") return { needsLink: true, email: email.trim() }; throw e; }
+        catch (e) {
+          if (e.i18n === "email_not_confirmed") { try { await authFetch("resend", { type: "signup", email: email.trim() }); } catch (x) { } return { needsCode: true, email: email.trim() }; }
+          throw e;
+        }
         return { user: await loadProfile() };
       },
-      async verifyEmail() { throw err("err_generic"); },
-      async resend(email) { await authFetch("resend", { type: "signup", email }); return {}; },
+      async verifyEmail(email, code) {
+        const r = await fetch(url + "/auth/v1/verify", { method: "POST", headers: { apikey: anon, "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "signup", email: email.trim(), token: String(code).trim() }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.access_token) throw (r.status === 429 ? err("err_rate_email") : err("err_code"));
+        setSession(j); return loadProfile();
+      },
+      async resend(email) { await authFetch("resend", { type: "signup", email: email.trim() }); return {}; },
       async logout() { try { await fetch(url + "/auth/v1/logout", { method: "POST", headers: { apikey: anon, Authorization: "Bearer " + await token() } }); } catch (e) { } session = null; profile = null; localStorage.removeItem(SK); },
       async requestOrgVerification(d) {
         checkOrg(d);
@@ -248,11 +308,26 @@
         return loadProfile();
       },
       approveDemo: null,
+
+      // Profilbillede: gemmes i bucket "avatars" i brugerens egen mappe
+      async setAvatar(dataUrl) {
+        if (!profile) throw err("login_required");
+        const old = profile.avatar_url;
+        const removeOld = async u => {
+          const m = u && u.match(/\/object\/public\/avatars\/(.+)$/); if (!m) return;
+          try { await fetch(url + "/storage/v1/object/avatars/" + m[1].split("?")[0], { method: "DELETE", headers: { apikey: anon, Authorization: "Bearer " + await token() } }); } catch (e) { }
+        };
+        if (!dataUrl) { await rpc("set_avatar", { p_url: null }); removeOld(old); return loadProfile(); }
+        const pub = await upload("avatars", profile.id + "/avatar-" + uidn() + ".jpg", dataUrl);
+        await rpc("set_avatar", { p_url: pub }); removeOld(old);
+        return loadProfile();
+      },
+
       async listings() { return api("/rest/v1/listings_public?select=" + LCOLS + "&order=created_at.desc&limit=1000"); },
       async listing(id) { const r = await api("/rest/v1/listings_public?select=" + LCOLS + "&id=eq." + encodeURIComponent(id)); return r[0] || null; },
       async createListing(data) {
         if (!profile) throw err("login_required");
-        const images = []; for (const d of data.images || []) images.push(await upload(d));
+        const images = []; for (const d of data.images || []) images.push(await upload("annoncebilleder", profile.id + "/" + uidn() + ".jpg", d));
         return rpc("create_listing", { p: Object.assign({}, data, { images }) });
       },
       async myListings() { return profile ? rpc("my_listings") : []; },
@@ -261,16 +336,17 @@
       async remove(id) { await rpc("delete_listing", { p_id: id }); },
       async wanted() { return api("/rest/v1/wanted_public?select=*&order=created_at.desc&limit=300"); },
       async addWanted(w) { if (!profile) throw err("login_required"); return rpc("create_wanted", { p: w }); },
-      async report(r) { return rpc("create_report", { p: r }); }
+      async report(r) { return rpc("create_report", { p: r }); },
+
+      // Indbakke
+      async sendMessage(d) { if (!profile) throw err("login_required"); return rpc("send_message", { p_listing: d.listing_id || null, p_wanted: d.wanted_id || null, p_body: d.body }); },
+      async conversations() { return (await rpc("my_conversations")) || []; },
+      async thread(id) { return rpc("conversation_thread", { p_id: id }); },
+      async reply(id, body) { await rpc("reply_message", { p_id: id, p_body: body }); },
+      async unreadCount() { if (!profile) return 0; const n = await rpc("unread_count"); return Number(n) || 0; }
     };
   }
 
-  // Vælg backend: test-projekt i testmiljø (hvis udfyldt), ellers drift
   const b = C.backend || {};
-  const t = b.test || {};
-  const cfg = (ENV === "test" && t.supabaseUrl && t.supabaseAnonKey) ? t : (ENV === "prod" ? b : null);
-  window.GMStore = (b.type === "supabase" && cfg && cfg.supabaseUrl && cfg.supabaseAnonKey)
-    ? SupabaseStore(cfg.supabaseUrl, cfg.supabaseAnonKey)
-    : LocalStore();
-  window.GM_ENV = { env: ENV, backend: window.GMStore.mode, isTestDb: window.GMStore.mode === "supabase" && cfg === t };
+  window.GMStore = (b.type === "supabase" && b.supabaseUrl && b.supabaseAnonKey) ? SupabaseStore(b.supabaseUrl, b.supabaseAnonKey) : LocalStore();
 })();

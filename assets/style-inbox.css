@@ -1,0 +1,28 @@
+/* Indbakke, profilbillede og e-mailkode (tilføjelse til style.css) */
+.av{border-radius:50%;object-fit:cover;flex-shrink:0;display:inline-block;vertical-align:middle;background:#eef3ff}
+.av-i{display:inline-flex;align-items:center;justify-content:center;background:#e3ebff;color:#1747c7;font-weight:700;line-height:1}
+#userBtn{position:relative;gap:8px}
+.udot{position:absolute;top:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#ff6b2c;border:2px solid #0f1f3d}
+.nbadge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:10px;background:#ff6b2c;color:#fff;font-size:.72rem;font-weight:700;text-align:center;line-height:18px}
+.convlist{display:grid;gap:8px;margin-top:14px}
+.conv{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;text-align:left;width:100%;background:#fff;border:1.5px solid #e3e8f1;border-radius:12px;padding:12px;cursor:pointer;font:inherit;color:inherit}
+.conv:hover{border-color:#1f5eff}
+.conv.unread{border-color:#ff6b2c;background:#fff8f3}
+.conv b{display:block}
+.conv .cmain{min-width:0}
+.conv-last{color:#5b6578;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv.unread .conv-last{color:#1a2233;font-weight:600}
+.conv-meta{text-align:right;font-size:.78rem;color:#5b6578;display:grid;gap:4px;justify-items:end}
+.thead{display:flex;gap:12px;align-items:center;margin:12px 0}
+.msgs{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto;padding:12px;background:#f6f8fc;border-radius:12px}
+.bubble{max-width:82%;background:#fff;border:1px solid #e3e8f1;border-radius:14px 14px 14px 4px;padding:8px 12px;align-self:flex-start}
+.bubble.mine{align-self:flex-end;background:#eef3ff;border-color:#c9d8ff;border-radius:14px 14px 4px 14px}
+.bubble div{white-space:pre-wrap;overflow-wrap:anywhere;color:#1a2233;font-size:.95rem}
+.bubble small{display:block;color:#5b6578;font-size:.72rem;margin-top:2px}
+.reply{display:grid;gap:8px;margin-top:12px}
+.reply textarea,#msgBody{width:100%;min-height:90px;padding:10px;border:1px solid #e3e8f1;border-radius:8px;resize:vertical;font:inherit;background:#fff}
+.avrow{display:flex;gap:14px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
+.avbtns{display:flex;gap:8px;flex-wrap:wrap}
+#resendBtn:disabled{color:#5b6578;text-decoration:none;cursor:default}
+.sellerline{display:flex;gap:8px;align-items:center}
+.cardseller{display:flex;gap:6px;align-items:center}

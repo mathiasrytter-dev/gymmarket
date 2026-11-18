@@ -25,12 +25,12 @@
 <meta property="og:url" content="https://gymmarket.dk/">
 <meta property="og:type" content="website">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="assets/style.css?v=3">
+<link rel="stylesheet" href="assets/style.css?v=4">
+<link rel="stylesheet" href="assets/style-inbox.css?v=4">
 </head>
 <body>
 
 <div class="topbar"><div class="wrap">
-  <span class="envbadge" id="envBadge" hidden>TEST</span>
   <label><span data-i18n="lang_label">Language</span> <select id="langSel"></select></label>
   <label><span data-i18n="cur_label">Show prices in</span> <select id="curSel"></select></label>
 </div></div>
@@ -45,6 +45,7 @@
       <a href="#annoncer" data-i18n="nav_buy"></a>
       <a href="#efterlyses" data-i18n="nav_wanted"></a>
       <a href="#mine" data-i18n="nav_mine"></a>
+      <a href="#" data-inbox><span data-i18n="inbox"></span><span class="nbadge" id="inboxBadge" hidden></span></a>
       <a href="#faq" data-i18n="nav_faq"></a>
       <a href="#" class="m-only" data-sell data-i18n="nav_sell"></a>
     </nav>
@@ -160,7 +161,7 @@
       <div><div class="logo" style="color:#fff">Gym<span>Market</span></div><p style="margin-top:10px;font-size:.92rem;max-width:320px" data-i18n="footer_tag"></p><div class="langs" id="footLangs"></div></div>
       <div><h4 data-i18n="f_buy"></h4><a href="#annoncer" data-i18n="f_all"></a><a href="#efterlyses" data-i18n="nav_wanted"></a></div>
       <div><h4 data-i18n="f_sell"></h4><button class="flink" type="button" data-sell data-i18n="fb_btn"></button><a href="#mine" data-i18n="nav_mine"></a></div>
-      <div><h4>GymMarket</h4><a href="#faq" data-i18n="nav_faq"></a><a href="mailto:kontakt@gymmarket.dk" id="footMail">kontakt@gymmarket.dk</a><button class="flink" type="button" data-open="mTerms" data-i18n="terms"></button><button class="flink" type="button" data-open="mPrivacy" data-i18n="privacy"></button><button class="flink" type="button" data-report="" data-i18n="report_content"></button></div>
+      <div><h4>GymMarket</h4><a href="#faq" data-i18n="nav_faq"></a><a href="#" id="footMail"></a><button class="flink" type="button" data-open="mTerms" data-i18n="terms"></button><button class="flink" type="button" data-open="mPrivacy" data-i18n="privacy"></button><button class="flink" type="button" data-report="" data-i18n="report_content"></button></div>
     </div>
     <div class="copy" id="copyLine"></div>
   </div>
@@ -209,7 +210,8 @@
       </div>
       <div id="paneVerify" hidden>
         <h2 data-i18n="verify_h"></h2>
-        <p id="verifyText" style="margin:10px 0 16px"></p>
+        <p id="verifyText" style="margin:10px 0 12px"></p>
+        <p class="hint" id="verifySpam" style="margin-bottom:12px" data-i18n="verify_spam"></p>
         <div class="notice demo" id="verifyDemo" hidden></div>
         <form id="verifyForm" class="form-grid" novalidate>
           <div class="full"><label class="l" for="vCode" data-i18n="l_code"></label><input id="vCode" class="code-input" inputmode="numeric" maxlength="6" required pattern="\d{6}" autocomplete="one-time-code"></div>
@@ -230,6 +232,25 @@
 
 <div class="modal" id="mProfile" role="dialog" aria-modal="true">
   <div class="mbox sm"><button class="mclose" type="button" data-close aria-label="×">×</button><div class="mcontent" id="profileBody"></div></div>
+</div>
+
+<div class="modal" id="mInbox" role="dialog" aria-modal="true" aria-labelledby="inboxH">
+  <div class="mbox"><button class="mclose" type="button" data-close aria-label="×">×</button><div class="mcontent" id="inboxBody"></div></div>
+</div>
+
+<div class="modal" id="mMsg" role="dialog" aria-modal="true" aria-labelledby="msgH">
+  <div class="mbox sm"><button class="mclose" type="button" data-close aria-label="×">×</button>
+    <div class="mcontent">
+      <h2 id="msgH"></h2><p class="sub" id="msgAbout" style="margin:4px 0 14px"></p>
+      <form id="msgForm" novalidate>
+        <input type="hidden" id="msgListing"><input type="hidden" id="msgWanted">
+        <textarea id="msgBody" maxlength="2000" required data-i18n-ph="msg_ph" data-i18n-aria="msg_send"></textarea>
+        <div class="hint" style="margin:6px 0 10px" data-i18n="msg_hint"></div>
+        <div class="form-err" id="msgErr" aria-live="assertive"></div>
+        <button class="btn btn-primary" type="submit" id="msgBtn" style="width:100%;margin-top:8px" data-i18n="msg_btn"></button>
+      </form>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="mSell" role="dialog" aria-modal="true" aria-labelledby="sellH">
@@ -308,15 +329,15 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="assets/config.js?v=3"></script>
-<script src="assets/registries.js?v=3"></script>
-<script src="assets/i18n-verify.js?v=3"></script>
-<script src="assets/i18n-overrides.js?v=3"></script>
-<script src="assets/i18n.js?v=3"></script>
-<script src="assets/icons.js?v=3"></script>
-<script src="assets/data-demo.js?v=3"></script>
-<script src="assets/store.js?v=3"></script>
-<script src="assets/app.js?v=3"></script>
-<script src="assets/fb-import.js?v=3"></script>
+<script src="assets/config.js?v=4"></script>
+<script src="assets/registries.js?v=4"></script>
+<script src="assets/i18n-verify.js?v=4"></script>
+<script src="assets/i18n-inbox.js?v=4"></script>
+<script src="assets/i18n-overrides.js?v=4"></script>
+<script src="assets/i18n.js?v=4"></script>
+<script src="assets/icons.js?v=4"></script>
+<script src="assets/store.js?v=4"></script>
+<script src="assets/app.js?v=4"></script>
+<script src="assets/fb-import.js?v=4"></script>
 </body>
 </html>

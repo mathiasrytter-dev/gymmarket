@@ -15,6 +15,12 @@
   const catName = id => t("cat_" + cat(id).id);
   const vcheck = s => `<span class="vcheck" title="${esc(t("verified"))}">${GMIcon("check", s || 12, 3)}</span>`;
   const verifiedVia = o => o && o.org_country ? t("verified_via", { label: Reg.label(o.org_country, o.org_id_type || "company") || t("id_" + (o.org_id_type || "company")), country: GMT.country(o.org_country) }) : t("verified");
+  const initials = n => String(n || "?").trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join("").toUpperCase() || "?";
+  const av = (url, name, s) => { s = s || 32; return url
+    ? `<img class="av" src="${esc(url)}" alt="" width="${s}" height="${s}" style="width:${s}px;height:${s}px">`
+    : `<span class="av av-i" style="width:${s}px;height:${s}px;font-size:${Math.round(s * .4)}px" aria-hidden="true">${esc(initials(name))}</span>`; };
+  const fmtWhen = iso => { const d = new Date(iso), same = d.toDateString() === new Date().toDateString();
+    return new Intl.DateTimeFormat(LOC, same ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(d); };
 
   const [homeCountry, langCur] = C.langDefaults[lang] || ["", "EUR"];
   let dispCur = (() => { try { const c = localStorage.getItem("gm_cur"); if (C.currencies.includes(c)) return c; } catch (e) { } return langCur; })();
@@ -25,11 +31,7 @@
   const countryCodes = Object.keys(C.countries).sort((a, b) => GMT.country(a).localeCompare(GMT.country(b), LOC));
 
   let settings = { listing_days: C.listingDays }, all = [], wanted = [], activeCat = "", pendingImages = [];
-  let afterAuth = null, verifyEmail = "";
-
-  // Eksempelannoncer: true / false / "auto" (skjules når der er nok rigtige annoncer)
-  const showDemo = realCount => C.showDemoListings === true ||
-    (C.showDemoListings === "auto" && realCount < (C.demoUntilRealListings || 10));
+  let afterAuth = null, verifyEmail = "", unread = 0, inboxState = { view: "list" }, lastDetail = null, cooldown = 0, cdTimer = null;
 
   function toast(msg, isErr) {
     const el = $("#toast"); el.textContent = msg; el.classList.toggle("err", !!isErr); el.classList.add("show");
@@ -42,34 +44,29 @@
     $$(".modal.open").forEach(m => m.classList.remove("open"));
     const m = $("#" + id); if (!m) return;
     m.classList.add("open"); document.body.style.overflow = "hidden";
-    const f = m.querySelector(".mcontent > div:not([hidden]) input:not([type=hidden]), form input:not([type=hidden]):not([type=checkbox]), select, textarea") || m.querySelector("button:not(.mclose)");
+    const f = m.querySelector(".mcontent > div:not([hidden]) input:not([type=hidden]), form input:not([type=hidden]):not([type=checkbox]), form textarea, select") || m.querySelector("button:not(.mclose)");
     f && f.focus();
   }
   function closeModals() {
     $$(".modal.open").forEach(m => m.classList.remove("open"));
     document.body.style.overflow = "";
     if (location.hash.indexOf("#a=") === 0) history.replaceState(null, "", location.pathname + location.search);
+    if (inboxState.view !== "list") inboxState = { view: "list" };
     lastFocus && lastFocus.focus && lastFocus.focus();
+    refreshUnread();
   }
 
   /* ---------- Statisk opsætning ---------- */
   GMT.apply();
   document.title = t("meta_title");
 
-  // Virksomhedsoplysninger (config.company) i footer og juridiske tekster
   const CO = C.company || {};
-  const coName = CO.legalName || "GymMarket";
-  const coMail = CO.email || C.site.email;
-  const missing = t("co_missing");
-  $("#copyLine").textContent = ["© " + new Date().getFullYear() + " " + coName, "gymmarket.dk",
-    CO.cvr ? "CVR " + CO.cvr : "", CO.address || ""].filter(Boolean).join(" · ");
+  const coName = CO.legalName || "GymMarket", coMail = CO.email || C.site.email, missing = t("co_missing");
+  $("#copyLine").textContent = ["© " + new Date().getFullYear() + " " + coName, "gymmarket.dk", CO.cvr ? "CVR " + CO.cvr : "", CO.address || ""].filter(Boolean).join(" · ");
   $("#footMail").textContent = coMail; $("#footMail").href = "mailto:" + coMail;
   const coVars = { co_name: esc(coName), co_cvr: esc(CO.cvr || missing), co_address: esc(CO.address || missing), co_email: esc(coMail) };
   $$("[data-legal]").forEach(el => el.innerHTML = t(el.dataset.legal, coVars));
   $$(".legalnote").forEach(e => e.textContent = t("draft") + (GMT.has("terms_html") ? "" : " " + t("legal_fallback")));
-
-  // Testmiljø-mærkat
-  if (window.GM_ENV && window.GM_ENV.env === "test") { const eb = $("#envBadge"); eb.hidden = false; eb.title = window.GM_ENV.isTestDb ? "Test-database" : "Prototype (lokal)"; }
 
   $("#langSel").innerHTML = C.languages.map(l => {
     let n = l; try { n = new Intl.DisplayNames([l], { type: "language" }).of(l); n = n.charAt(0).toUpperCase() + n.slice(1); } catch (e) { }
@@ -97,25 +94,27 @@
 
   try { const r = await S.init(); if (r.settings) settings = Object.assign(settings, r.settings); } catch (e) { toast(t("err_load"), true); }
 
-  let realListingCount = 0;
-  async function loadListings() {
-    let real = []; try { real = await S.listings(); } catch (e) { toast(t("err_load"), true); }
-    realListingCount = real.length;
-    all = real.concat(showDemo(real.length) ? (window.GM_DEMO || []) : []); renderGrid();
-  }
-  async function loadWanted() {
-    let real = []; try { real = await S.wanted(); } catch (e) { }
-    wanted = real.concat(showDemo(realListingCount) ? (window.GM_DEMO_WANTED || []) : []); renderWanted();
-  }
+  async function loadListings() { try { all = await S.listings(); } catch (e) { all = []; toast(t("err_load"), true); } renderGrid(); }
+  async function loadWanted() { try { wanted = await S.wanted(); } catch (e) { wanted = []; } renderWanted(); }
 
-  /* ---------- Bruger ---------- */
+  /* ---------- Bruger og ulæste beskeder ---------- */
   const user = () => S.user();
   function renderUserBtn() {
     const u = user(), b = $("#userBtn");
     if (!u) { b.innerHTML = `${GMIcon("user", 18)}<span class="uname">${esc(t("login"))}</span>`; return; }
     const nm = (u.user_type !== "private" && u.org_name) ? u.org_name : u.name;
-    b.innerHTML = `${GMIcon("user", 18)}<span class="uname">${esc(nm.length > 18 ? nm.slice(0, 17) + "…" : nm)}</span>${u.org_status === "approved" ? vcheck() : ""}`;
+    b.innerHTML = `${av(u.avatar_url, nm, 26)}<span class="uname">${esc(nm.length > 18 ? nm.slice(0, 17) + "…" : nm)}</span>${u.org_status === "approved" ? vcheck() : ""}${unread > 0 ? `<span class="udot" aria-hidden="true"></span>` : ""}`;
   }
+  function updateBadges() {
+    const b = $("#inboxBadge"); b.hidden = unread < 1; b.textContent = unread > 99 ? "99+" : String(unread);
+    b.setAttribute("aria-label", unread + " " + t("inbox")); renderUserBtn();
+  }
+  async function refreshUnread() {
+    if (!user()) unread = 0; else { try { unread = await S.unreadCount(); } catch (e) { } }
+    updateBadges();
+  }
+  setInterval(() => { if (!document.hidden && user()) refreshUnread(); }, 60000);
+
   function showPane(id) { ["paneLogin", "paneSignup", "paneVerify", "paneLink"].forEach(p => $("#" + p).hidden = p !== id); $$(".form-err", $("#mAuth")).forEach(e => e.textContent = ""); }
   function openAuth(pane, reasonKey) {
     showPane(pane || "paneLogin");
@@ -125,8 +124,14 @@
   function requireUser(then) {
     const u = user();
     if (!u) { afterAuth = then; openAuth("paneLogin", "login_required"); return; }
-    if (!u.email_verified) { afterAuth = then; showVerify({ email: u.email }); return; }
+    if (!u.email_verified) { afterAuth = then; doResendAndShow(u.email); return; }
     then();
+  }
+  async function doResendAndShow(email) { try { const r = await S.resend(email); showVerify(Object.assign({ needsCode: true, email }, r)); } catch (ex) { showVerify({ needsCode: true, email }); } }
+  function startCooldown(sec) {
+    cooldown = sec; clearInterval(cdTimer);
+    const tick = () => { const b = $("#resendBtn"); if (cooldown > 0) { b.disabled = true; b.textContent = t("resend_in", { s: cooldown }); cooldown--; } else { clearInterval(cdTimer); b.disabled = false; b.textContent = t("resend"); } };
+    tick(); cdTimer = setInterval(tick, 1000);
   }
   function showVerify(r) {
     verifyEmail = r.email;
@@ -134,7 +139,8 @@
     else {
       $("#verifyText").textContent = t("verify_p", { email: r.email });
       const d = $("#verifyDemo"); d.hidden = !r.demoCode; if (r.demoCode) d.textContent = t("verify_demo", { code: r.demoCode });
-      showPane("paneVerify"); $("#vCode").value = "";
+      $("#verifySpam").hidden = !!r.demoCode;
+      showPane("paneVerify"); $("#vCode").value = ""; if (!r.demoCode) startCooldown(60); else { clearInterval(cdTimer); $("#resendBtn").disabled = false; $("#resendBtn").textContent = t("resend"); }
     }
     $("#authReason").hidden = true;
     if (!$("#mAuth").classList.contains("open")) openModal("mAuth");
@@ -142,21 +148,44 @@
   }
   async function onLoggedIn(u) {
     renderUserBtn(); closeModals(); toast(t("t_welcome", { name: u.name }));
-    await Promise.all([renderMine(), loadListings().then(loadWanted)]);
+    await Promise.all([renderMine(), loadListings().then(loadWanted), refreshUnread()]);
     if (afterAuth) { const f = afterAuth; afterAuth = null; f(); }
+  }
+
+  /* ---------- Profilbillede ---------- */
+  function squareImage(file, size) {
+    return new Promise((res, rej) => {
+      if (!file || file.type.indexOf("image/") !== 0) return rej(Object.assign(new Error(), { i18n: "avatar_err" }));
+      const u = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const s = Math.min(img.width, img.height), cv = document.createElement("canvas"); cv.width = cv.height = size;
+        cv.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        URL.revokeObjectURL(u); res(cv.toDataURL("image/jpeg", .85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(u); rej(Object.assign(new Error(), { i18n: "avatar_err" })); };
+      img.src = u;
+    });
+  }
+  async function saveAvatar(file) {
+    try { await S.setAvatar(file ? await squareImage(file, 256) : null); toast(t(file ? "avatar_saved" : "avatar_removed")); renderProfile(); renderUserBtn(); loadListings().then(loadWanted); }
+    catch (ex) { toast(ex && ex.i18n ? t(ex.i18n) : t("avatar_err"), true); }
   }
 
   /* ---------- Profil og verificering (alle 31 lande) ---------- */
   function renderProfile() {
     const u = user(); if (!u) return;
+    const nm = (u.user_type !== "private" && u.org_name) ? u.org_name : u.name;
     const orgCls = { none: "none", pending: "pending", approved: "ok", rejected: "no" }[u.org_status] || "none";
     const canRequest = u.org_status === "none" || u.org_status === "rejected";
     const submitted = u.org_country && u.org_number ? t("org_submitted", { label: Reg.label(u.org_country, u.org_id_type), number: u.org_number, country: GMT.country(u.org_country) }) : "";
     const defType = u.user_type === "private" ? "company" : (u.is_trader || u.user_type === "dealer") ? "vat" : (u.user_type === "club" ? "assoc" : "company");
     $("#profileBody").innerHTML = `
-      <div class="prof-head"><div class="avatar">${GMIcon("user", 28)}</div>
+      <div class="avrow">${av(u.avatar_url, nm, 72)}
         <div><h2 style="font-size:1.35rem">${esc(u.name)} ${u.org_status === "approved" ? vcheck(14) : ""}</h2>
-        <div class="meta">${esc(u.org_name ? u.org_name + " · " : "")}${esc(t("st_" + u.user_type))}</div></div></div>
+        <div class="meta">${esc(u.org_name ? u.org_name + " · " : "")}${esc(t("st_" + u.user_type))}</div>
+        <div class="avbtns" style="margin-top:8px"><label class="btn btn-ghost btn-sm" for="avFile" style="cursor:pointer">${esc(t(u.avatar_url ? "avatar_change" : "avatar_add"))}</label>
+        <input type="file" id="avFile" accept="image/*" hidden>${u.avatar_url ? `<button class="btn btn-danger btn-sm" type="button" id="avRemove">${esc(t("avatar_remove"))}</button>` : ""}</div></div></div>
+      <p class="hint" style="margin:-4px 0 14px">${esc(t("avatar_hint"))}</p>
       <div class="prof-rows">
         <div><span>${esc(t("l_email").replace(" *", ""))}</span><b>${esc(u.email)} <span class="chip ${u.email_verified ? "ok" : "no"}" style="margin:0 0 0 4px">${esc(t(u.email_verified ? "email_ok" : "email_no"))}</span></b></div>
         <div><span>${esc(t("country"))}</span><b>${esc(GMT.country(u.country))}</b></div>
@@ -177,9 +206,11 @@
         </form>` : ""}
       ${u.org_status === "pending" && typeof S.approveDemo === "function" ? `<div class="notice demo" style="margin-top:4px">${esc(t("org_pending"))} – <button class="link" type="button" id="approveDemo">${esc(t("approve_demo"))}</button></div>` : ""}
       <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
+        <button class="btn btn-ghost" type="button" data-inbox>${esc(t("inbox"))}${unread > 0 ? ` <span class="nbadge">${unread}</span>` : ""}</button>
         <a class="btn btn-ghost" href="#mine" data-close>${esc(t("nav_mine"))}</a>
         <button class="btn btn-danger" type="button" id="logoutBtn">${esc(t("logout"))}</button>
       </div>`;
+    $("#avFile").addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f) saveAvatar(f); });
     const f = $("#orgForm"); if (!f) return;
     const oC = $("#oCountry"), oT = $("#oType"), oN = $("#oNum"), oH = $("#oHint");
     function fillTypes(keep) {
@@ -222,63 +253,66 @@
       && (!sellers.length || sellers.includes(l.seller_type)) && (!tr || l.transport) && (!ver || l.seller_verified)
       && (!q || [l.title, l.brand, catName(l.category), l.city, GMT.country(l.country), l.description, l.seller_name].join(" ").toLowerCase().includes(q)));
     const s = $("#fSort").value, eur = l => convert(l.price, l.currency, "EUR");
-    r.sort((a, b) => s === "low" ? eur(a) - eur(b) : s === "high" ? eur(b) - eur(a) : (a.demo ? 1 : 0) - (b.demo ? 1 : 0) || Date.parse(b.created_at) - Date.parse(a.created_at));
-    $("#resultCount").textContent = (r.length === 1 ? t("results_one") : t("results", { n: num(r.length) })) + (activeCat ? " " + t("results_in", { c: catName(activeCat) }) : "");
+    r.sort((a, b) => s === "low" ? eur(a) - eur(b) : s === "high" ? eur(b) - eur(a) : Date.parse(b.created_at) - Date.parse(a.created_at));
+    $("#resultCount").textContent = all.length ? (r.length === 1 ? t("results_one") : t("results", { n: num(r.length) })) + (activeCat ? " " + t("results_in", { c: catName(activeCat) }) : "") : "";
     $("#grid").innerHTML = r.length ? r.map(l => {
       const c = cat(l.category);
       return `<article class="card" tabindex="0" data-id="${esc(l.id)}" aria-label="${esc(l.title)}">
-        <div class="thumb" style="background:${c.c}">${thumbHtml(l)}${l.demo ? `<span class="badge">${esc(t("example"))}</span>` : ""}${l.seller_verified ? `<span class="badge v" title="${esc(verifiedVia(l))}">${GMIcon("check", 11, 3)} ${esc(t("verified"))}</span>` : ""}<span class="badge flag">${esc(l.country)}</span></div>
+        <div class="thumb" style="background:${c.c}">${thumbHtml(l)}${l.seller_verified ? `<span class="badge v" title="${esc(verifiedVia(l))}">${GMIcon("check", 11, 3)} ${esc(t("verified"))}</span>` : ""}<span class="badge flag">${esc(l.country)}</span></div>
         <div class="body"><h3>${esc(l.title)}</h3><div class="meta">${esc(l.city)} · ${esc(t("cond_" + l.condition))}${l.year ? " · " + esc(l.year) : ""}</div>
-        <div class="meta">${esc(l.seller_name || "")} · ${esc(t("st_" + l.seller_type))}</div>
+        <div class="meta cardseller">${av(l.seller_avatar, l.seller_name, 18)}<span>${esc(l.seller_name || "")} · ${esc(t("st_" + l.seller_type))}</span></div>
         <div class="price">${priceHtml(l)}</div></div></article>`;
-    }).join("") : `<div class="empty">${esc(t("no_results"))}<br><button class="btn btn-blue" type="button" data-want style="margin-top:12px">${esc(t("wanted_new"))}</button></div>`;
+    }).join("") : all.length
+      ? `<div class="empty">${esc(t("no_results"))}<br><button class="btn btn-blue" type="button" data-want style="margin-top:12px">${esc(t("wanted_new"))}</button></div>`
+      : `<div class="empty">${esc(t("empty_first"))}<br><button class="btn btn-primary" type="button" data-sell style="margin-top:12px">${esc(t("nav_sell"))}</button></div>`;
   }
 
   async function openDetail(id) {
     let l = all.find(x => x.id === id);
     if (!l) { try { l = await S.listing(id); } catch (e) { } }
     if (!l) { toast(t("not_found"), true); return; }
-    const c = cat(l.category), imgs = l.images || [];
+    lastDetail = l;
+    const c = cat(l.category), imgs = l.images || [], u = user();
     const save = l.new_price && l.new_price > l.price ? Math.round((1 - l.price / l.new_price) * 100) : 0;
-    const mail = l.contact_email ? `mailto:${encodeURIComponent(l.contact_email)}?subject=${encodeURIComponent(t("mail_subject", { t: l.title }))}&body=${encodeURIComponent(t("mail_body", { t: l.title }))}` : "";
+    const isOwn = !!(u && l.seller_id && l.seller_id === u.id);
     const sellerBox = l.is_trader
       ? `<div class="notice trader"><b>${esc(t("trader_note"))}</b><br>${esc(t("company"))}: ${esc(l.trader_company || l.seller_name)} · ${esc(t("vat"))}: ${esc(l.trader_vat || "–")}<br>${esc(t("address"))}: ${esc(l.trader_address || "–")}</div>`
       : `<div class="notice priv">${esc(t("private_note"))}</div>`;
     $("#detail").innerHTML = `
       <div class="mhero" id="mMain" style="background:${c.c}">${imgs.length ? `<img src="${esc(imgs[0])}" alt="${esc(l.title)}">` : thumbHtml(l, 120)}</div>
-      ${imgs.length > 1 ? `<div class="gal">${imgs.map((u, i) => `<button type="button" class="${i ? "" : "on"}" data-img="${esc(u)}" aria-label="${i + 1}"><img src="${esc(u)}" alt=""></button>`).join("")}</div>` : ""}
+      ${imgs.length > 1 ? `<div class="gal">${imgs.map((x, i) => `<button type="button" class="${i ? "" : "on"}" data-img="${esc(x)}" aria-label="${i + 1}"><img src="${esc(x)}" alt=""></button>`).join("")}</div>` : ""}
       <div class="mcontent">
-        <div class="meta">${esc(catName(l.category))} · ${esc(l.city)}${l.postcode ? " " + esc(l.postcode) : ""}, ${esc(GMT.country(l.country))}${l.demo ? " · " + esc(t("example")) : ""}</div>
+        <div class="meta">${esc(catName(l.category))} · ${esc(l.city)}${l.postcode ? " " + esc(l.postcode) : ""}, ${esc(GMT.country(l.country))}</div>
         <h2 style="margin:4px 0">${esc(l.title)}</h2>
         <div style="font-size:1.8rem;font-weight:800">${money(l.price, l.currency)} ${save > 0 ? `<span style="font-size:.9rem;color:var(--green);font-weight:600">${esc(t("under_new", { p: save }))}</span>` : ""}</div>
         ${l.currency !== dispCur ? `<div class="meta">${esc(t("approx", { x: money(convert(l.price, l.currency, dispCur), dispCur) }))}</div>` : ""}
         <div class="specs">
           <div><span>${esc(t("brand"))}</span>${esc(l.brand || "–")}</div><div><span>${esc(t("year"))}</span>${esc(l.year || "–")}</div>
           <div><span>${esc(t("condition"))}</span>${esc(t("cond_" + l.condition))}</div><div><span>${esc(t("new_price"))}</span>${l.new_price ? money(l.new_price, l.currency) : "–"}</div>
-          <div><span>${esc(t("seller"))}</span>${esc(l.seller_name)} ${l.seller_verified ? vcheck() : ""}<br><small>${esc(t("st_" + l.seller_type))}</small></div>
+          <div><span>${esc(t("seller"))}</span><div class="sellerline">${av(l.seller_avatar, l.seller_name, 32)}<div>${esc(l.seller_name)} ${l.seller_verified ? vcheck() : ""}<br><small>${esc(t("st_" + l.seller_type))}</small></div></div></div>
           <div><span>${esc(t("transport"))}</span>${esc(l.transport ? t("transport_yes") : t("pickup"))}</div>
         </div>
         <p style="white-space:pre-line">${esc(l.description || t("no_desc"))}</p>
         ${l.lang && l.lang !== lang ? `<p class="meta">${esc(t("listed_in", { lang: GMT.language(l.lang) }))}</p>` : ""}
         ${l.seller_verified ? `<div class="notice ver">${vcheck()} ${esc(verifiedVia(l))}</div>` : ""}
         ${sellerBox}
-        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">
-          ${l.demo ? `<button class="btn btn-primary" type="button" data-demo>${esc(t("write_seller"))}</button>`
-            : `<a class="btn btn-primary" href="${mail}">${esc(t("write_seller"))}</a>${l.contact_phone ? `<a class="btn btn-blue" href="tel:${esc(l.contact_phone.replace(/[^\d+]/g, ""))}">${esc(t("call", { x: l.contact_phone }))}</a>` : ""}`}
+        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;align-items:center">
+          ${isOwn ? `<span class="meta">${esc(t("msg_own"))}</span>` : `<button class="btn btn-primary" type="button" data-msg-listing="${esc(l.id)}">${esc(t("msg_send"))}</button>`}
+          ${l.contact_phone ? `<a class="btn btn-blue" href="tel:${esc(l.contact_phone.replace(/[^\d+]/g, ""))}">${esc(t("call", { x: l.contact_phone }))}</a>` : ""}
           <button class="btn btn-ghost" type="button" data-share="${esc(l.id)}">${esc(t("share"))}</button>
           <button class="btn btn-ghost" type="button" data-report="${esc(l.id)}">⚑ ${esc(t("report"))}</button>
         </div>
         <p class="meta" style="margin-top:14px">${esc(t("tip"))}</p>
       </div>`;
     openModal("mDetail");
-    if (!l.demo) history.replaceState(null, "", location.pathname + location.search + "#a=" + encodeURIComponent(l.id));
+    history.replaceState(null, "", location.pathname + location.search + "#a=" + encodeURIComponent(l.id));
   }
 
   function renderWanted() {
+    const u = user();
     $("#wanted").innerHTML = wanted.length ? wanted.map(w => `<div class="want"><b>${esc(w.title)}</b>
-      <div class="meta">${esc(w.name)} ${w.verified ? vcheck() : ""} · ${esc(w.area || t("anywhere"))} · ${esc(t("budget"))}: ${esc(w.budget || t("by_agreement"))}${w.demo ? " · " + esc(t("example")) : ""}</div>
-      ${w.contact_email ? `<a class="btn btn-ghost btn-sm" href="mailto:${encodeURIComponent(w.contact_email)}?subject=${encodeURIComponent(t("mail_subject", { t: w.title }))}">${esc(t("wanted_write"))}</a>`
-        : `<button class="btn btn-ghost btn-sm" type="button" data-sell>${esc(t("wanted_have"))}</button>`}</div>`).join("")
+      <div class="meta cardseller">${av(w.seller_avatar, w.name, 18)}<span>${esc(w.name)} ${w.verified ? vcheck() : ""} · ${esc(w.area || t("anywhere"))} · ${esc(t("budget"))}: ${esc(w.budget || t("by_agreement"))}</span></div>
+      ${u && w.seller_id === u.id ? "" : `<button class="btn btn-ghost btn-sm" type="button" style="margin-top:10px" data-msg-wanted="${esc(w.id)}">${esc(t("wanted_write"))}</button>`}</div>`).join("")
       : `<div class="empty">${esc(t("wanted_none"))}</div>`;
   }
 
@@ -298,6 +332,51 @@
         <div class="mine-actions">${acts}</div></div>`;
     }).join("");
   }
+
+  /* ---------- Indbakke ---------- */
+  function openInbox() { inboxState = { view: "list" }; renderInbox(); openModal("mInbox"); }
+  async function renderInbox() {
+    const box = $("#inboxBody");
+    if (inboxState.view === "thread") return renderThread(inboxState.id);
+    box.innerHTML = `<h2 id="inboxH">${esc(t("inbox"))}</h2><p class="sub">${esc(t("inbox_sub"))}</p><div class="convlist" id="convList" aria-live="polite"></div>`;
+    let list = []; try { list = await S.conversations(); } catch (ex) { toast(errMsg(ex), true); }
+    $("#convList").innerHTML = list.length ? list.map(c => `<button type="button" class="conv ${c.unread ? "unread" : ""}" data-conv="${esc(c.id)}">
+        ${av(c.other_avatar, c.other_name, 44)}
+        <div class="cmain"><b>${esc(c.other_name)} ${c.other_verified ? vcheck() : ""}</b><div class="meta" style="margin:0">${esc(c.subject)}</div>
+        <div class="conv-last">${c.last_from_me ? esc(t("you_prefix")) + ": " : ""}${esc(c.last_body)}</div></div>
+        <div class="conv-meta"><span>${esc(fmtWhen(c.last_at))}</span>${c.unread ? `<span class="nbadge" style="margin:0">${c.unread}</span>` : ""}</div></button>`).join("")
+      : `<div class="empty">${esc(t("inbox_empty"))}</div>`;
+    refreshUnread();
+  }
+  async function renderThread(id) {
+    const box = $("#inboxBody");
+    let th; try { th = await S.thread(id); } catch (ex) { toast(errMsg(ex), true); inboxState = { view: "list" }; return renderInbox(); }
+    box.innerHTML = `<button class="link" type="button" data-inbox-back>← ${esc(t("inbox_back"))}</button>
+      <div class="thead">${av(th.other_avatar, th.other_name, 44)}<div><b id="inboxH">${esc(th.other_name)} ${th.other_verified ? vcheck() : ""}</b><div class="meta" style="margin:0">${esc(th.subject)}</div>
+      ${th.listing_id ? `<button class="link" type="button" data-view-listing="${esc(th.listing_id)}">${esc(t("thread_open"))}</button>` : ""}</div></div>
+      <div class="msgs" id="msgList">${(th.messages || []).map(m => `<div class="bubble ${m.mine ? "mine" : ""}"><div>${esc(m.body)}</div><small>${esc(fmtWhen(m.created_at))}</small></div>`).join("")}</div>
+      <form class="reply" id="replyForm" novalidate><textarea id="replyBody" maxlength="2000" required placeholder="${esc(t("reply_ph"))}" aria-label="${esc(t("reply_btn"))}"></textarea>
+      <div class="form-err" id="replyErr" aria-live="assertive"></div><button class="btn btn-primary" type="submit">${esc(t("reply_btn"))}</button></form>`;
+    const ml = $("#msgList"); ml.scrollTop = ml.scrollHeight;
+    $("#replyForm").addEventListener("submit", async e => {
+      e.preventDefault(); const body = $("#replyBody").value.trim();
+      if (body.length < 1) { $("#replyErr").textContent = t("msg_err_empty"); return; }
+      try { await S.reply(id, body); await renderThread(id); } catch (ex) { $("#replyErr").textContent = errMsg(ex); }
+    });
+    refreshUnread();
+  }
+  function openMsg(o) {
+    $("#msgListing").value = o.listing_id || ""; $("#msgWanted").value = o.wanted_id || "";
+    $("#msgH").textContent = t("msg_h", { name: o.name }); $("#msgAbout").textContent = t("msg_about", { t: o.title });
+    $("#msgBody").value = ""; $("#msgErr").textContent = ""; openModal("mMsg");
+  }
+  $("#msgForm").addEventListener("submit", async e => {
+    e.preventDefault(); const er = $("#msgErr"), body = $("#msgBody").value.trim(), btn = $("#msgBtn");
+    if (body.length < 2) { er.textContent = t("msg_err_empty"); return; }
+    btn.disabled = true;
+    try { await S.sendMessage({ listing_id: $("#msgListing").value || null, wanted_id: $("#msgWanted").value || null, body }); closeModals(); toast(t("msg_sent")); }
+    catch (ex) { er.textContent = errMsg(ex); } finally { btn.disabled = false; }
+  });
 
   /* ---------- Formularer ---------- */
   function validate(form, errEl) {
@@ -363,12 +442,14 @@
     if (!$("#suCountry").value) { er.textContent = t("err_field", { f: t("l_country").replace(" *", "") }); return; }
     const tr = $("#suTrader").checked, priv = $("#suType").value === "private";
     if (tr && !syncVat()) { er.textContent = $("#suVatHint").textContent; $("#suVat").focus(); return; }
+    const btn = $("#signupForm button[type=submit]"); btn.disabled = true;
     try {
       const r = await S.signup({ name: $("#suName").value.trim(), email: $("#suEmail").value, password: $("#suPw").value,
         user_type: $("#suType").value, org_name: priv ? "" : $("#suOrg").value.trim(), country: $("#suCountry").value, phone: $("#suPhone").value.trim(),
         is_trader: tr, trader_company: tr ? $("#suCompany").value.trim() : null, trader_vat: tr ? $("#suVat").value.trim() : null, trader_address: tr ? $("#suAddress").value.trim() : null, lang });
-      e.target.reset(); $("#suCountry").value = homeCountry || ""; syncSignup(); showVerify(r);
-    } catch (ex) { er.textContent = errMsg(ex); }
+      e.target.reset(); $("#suCountry").value = homeCountry || ""; syncSignup();
+      if (r.user) await onLoggedIn(r.user); else showVerify(r);
+    } catch (ex) { er.textContent = errMsg(ex); } finally { btn.disabled = false; }
   });
   $("#verifyForm").addEventListener("submit", async e => {
     e.preventDefault(); const er = $("#verifyErr"); if (!validate(e.target, er)) return;
@@ -376,8 +457,8 @@
     catch (ex) { er.textContent = errMsg(ex); }
   });
   async function doResend() {
-    try { const r = await S.resend(verifyEmail); toast(t("t_resent")); if (r && r.demoCode) { $("#verifyDemo").hidden = false; $("#verifyDemo").textContent = t("verify_demo", { code: r.demoCode }); } }
-    catch (ex) { toast(errMsg(ex), true); }
+    try { const r = await S.resend(verifyEmail); toast(t("t_resent")); if (r && r.demoCode) { $("#verifyDemo").hidden = false; $("#verifyDemo").textContent = t("verify_demo", { code: r.demoCode }); } else startCooldown(60); }
+    catch (ex) { toast(errMsg(ex), true); startCooldown(60); }
   }
   $("#resendBtn").addEventListener("click", doResend); $("#resendLinkBtn").addEventListener("click", doResend);
 
@@ -414,7 +495,7 @@
   $("#repForm").addEventListener("submit", async e => {
     e.preventDefault(); const er = $("#repErr"); if (!validate(e.target, er)) return;
     try { const lid = $("#rListing").value;
-      await S.report({ listing_id: lid && lid.indexOf("demo-") !== 0 ? lid : null, reason: $("#rReason").value, details: $("#rDetails").value.trim(), reporter_email: $("#rEmail").value.trim(), good_faith: true, lang });
+      await S.report({ listing_id: lid || null, reason: $("#rReason").value, details: $("#rDetails").value.trim(), reporter_email: $("#rEmail").value.trim(), good_faith: true, lang });
       e.target.reset(); closeModals(); toast(t("t_reported")); }
     catch (ex) { er.textContent = errMsg(ex); }
   });
@@ -425,10 +506,19 @@
     const el = e.target;
     if (el.closest("#userBtn")) { user() ? (renderProfile(), openModal("mProfile")) : openAuth("paneLogin"); return; }
     if (el.closest("[data-login]")) { openAuth("paneLogin"); return; }
+    if (el.closest("[data-inbox-back]")) { inboxState = { view: "list" }; renderInbox(); return; }
+    if (el.closest("[data-inbox]")) { e.preventDefault(); $("#menu").classList.remove("open"); requireUser(openInbox); return; }
+    const cv = el.closest("[data-conv]"); if (cv) { inboxState = { view: "thread", id: cv.dataset.conv }; renderInbox(); return; }
+    const vl = el.closest("[data-view-listing]"); if (vl) { openDetail(vl.dataset.viewListing); return; }
+    const ml = el.closest("[data-msg-listing]");
+    if (ml) { const l = lastDetail; if (l && l.id === ml.dataset.msgListing) requireUser(() => openMsg({ listing_id: l.id, title: l.title, name: l.seller_name })); return; }
+    const mw = el.closest("[data-msg-wanted]");
+    if (mw) { const w = wanted.find(x => x.id === mw.dataset.msgWanted); if (w) requireUser(() => openMsg({ wanted_id: w.id, title: w.title, name: w.name })); return; }
     if (el.closest("[data-sell]")) { e.preventDefault(); $("#menu").classList.remove("open"); requireUser(openSell); return; }
     if (el.closest("[data-want]")) { e.preventDefault(); requireUser(() => openModal("mWant")); return; }
     const pn = el.closest("[data-pane]"); if (pn) { showPane(pn.dataset.pane); return; }
-    if (el.closest("#logoutBtn")) { await S.logout(); renderUserBtn(); closeModals(); toast(t("t_logged_out")); await Promise.all([renderMine(), loadListings().then(loadWanted)]); return; }
+    if (el.closest("#avRemove")) { saveAvatar(null); return; }
+    if (el.closest("#logoutBtn")) { await S.logout(); unread = 0; renderUserBtn(); updateBadges(); closeModals(); toast(t("t_logged_out")); await Promise.all([renderMine(), loadListings().then(loadWanted)]); return; }
     if (el.closest("#approveDemo")) { await S.approveDemo(); renderProfile(); renderUserBtn(); await loadListings().then(loadWanted); return; }
     const o = el.closest("[data-open]"); if (o) { e.preventDefault(); openModal(o.dataset.open); return; }
     if (el.closest("[data-close]") || el.classList.contains("modal")) { closeModals(); return; }
@@ -438,7 +528,6 @@
       $$(".cat").forEach(x => { const on = x.dataset.cat === activeCat; x.classList.toggle("active", on); x.setAttribute("aria-pressed", on); });
       renderGrid(); $("#annoncer").scrollIntoView(); return; }
     const g = el.closest("[data-img]"); if (g) { $("#mMain").innerHTML = `<img src="${esc(g.dataset.img)}" alt="">`; $$(".gal button").forEach(b => b.classList.toggle("on", b === g)); return; }
-    if (el.closest("[data-demo]")) { toast(t("demo_toast")); return; }
     const sh = el.closest("[data-share]");
     if (sh) { const link = location.origin + location.pathname + "?lang=" + lang + "#a=" + encodeURIComponent(sh.dataset.share);
       try { await navigator.clipboard.writeText(link); toast(t("link_copied")); } catch (x) { window.prompt(t("copy_prompt"), link); } return; }
@@ -464,6 +553,6 @@
   });
 
   renderUserBtn();
-  await Promise.all([loadListings().then(loadWanted), renderMine()]);
+  await Promise.all([loadListings().then(loadWanted), renderMine(), refreshUnread()]);
   if (location.hash.indexOf("#a=") === 0) openDetail(decodeURIComponent(location.hash.slice(3)));
 })();
