@@ -7,9 +7,9 @@ window.GM_CONFIG = {
   // ---- FØR LANCERING: udfyld virksomhedsoplysninger ----
   // Vises i footer, vilkår og privatlivspolitik. Tomme felter skjules i footeren.
   company: {
-    legalName: "",          // fx "GymMarket v/ Mathias Rytter" eller "GymMarket ApS"
-    cvr: "",                // fx "12345678"
-    address: "",            // fx "Vejnavn 1, 8000 Aarhus C, Danmark"
+    legalName: "",          // fx "GymMarket" eller "GymMarket ApS"
+    cvr: "",                // fx " "
+    address: "",            // fx "8200 Aarhus N, Danmark"
     email: "kontakt@gymmarket.dk"
   },
 
