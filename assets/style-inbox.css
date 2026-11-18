@@ -1,6 +1,11 @@
 /* Indbakke, profilbillede og e-mailkode (tilføjelse til style.css) */
 .av{border-radius:50%;object-fit:cover;flex-shrink:0;display:inline-block;vertical-align:middle;background:#eef3ff}
-.av-i{display:inline-flex;align-items:center;justify-content:center;background:#e3ebff;color:#1747c7;font-weight:700;line-height:1}
+.av-i{display:inline-flex!important;align-items:center;justify-content:center;background:#e3ebff;color:#1747c7!important;font-weight:700;line-height:1;letter-spacing:0}
+/* Rettelse: ".specs span" gjorde initial-cirklen til en blok, så bogstaverne stod skævt */
+.specs .av,.specs .av-i{margin:0}
+.sellerline{display:flex;gap:10px;align-items:center}
+.sellerline > div{display:block;color:#1a2233;font-size:.92rem}
+.sellerline small{color:#5b6578}
 #userBtn{position:relative;gap:8px}
 .udot{position:absolute;top:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#ff6b2c;border:2px solid #0f1f3d}
 .nbadge{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:10px;background:#ff6b2c;color:#fff;font-size:.72rem;font-weight:700;text-align:center;line-height:18px}
@@ -24,5 +29,4 @@
 .avrow{display:flex;gap:14px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
 .avbtns{display:flex;gap:8px;flex-wrap:wrap}
 #resendBtn:disabled{color:#5b6578;text-decoration:none;cursor:default}
-.sellerline{display:flex;gap:8px;align-items:center}
 .cardseller{display:flex;gap:6px;align-items:center}
