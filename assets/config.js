@@ -17,7 +17,7 @@ window.GM_CONFIG = {
   // "local"    = prototype (brugere og annoncer kun i denne browser)
   // "supabase" = drift. "test" bruges automatisk på localhost eller med ?env=test
   backend: {
-    type: "local", supabaseUrl: "", supabaseAnonKey: "",
+    type: "supabase", supabaseUrl: "https://ayipmkmtuobavyyntdhc.supabase.co/rest/v1/", supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5aXBta210dW9iYXZ5eW50ZGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5MTU2ODIsImV4cCI6MjExMDQ5MTY4Mn0.4mutojIVomwezrdQTkLUbY61dhBf-IE9oR_ypNlRa_o",
     test: { supabaseUrl: "", supabaseAnonKey: "" }
   },
 
