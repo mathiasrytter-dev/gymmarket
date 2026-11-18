@@ -1,0 +1,4 @@
+-- KUN TIL TESTPROJEKTET – må ikke køres i drift.
+-- Nulstil:  delete from reports; delete from wanted; delete from listings;
+-- Admin:    update profiles set is_admin = true where email = 'din-test-mail@eksempel.dk';
+-- Godkend:  update profiles set org_status = 'approved', org_verified_at = now() where org_status = 'pending';

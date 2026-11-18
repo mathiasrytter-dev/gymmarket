@@ -1,0 +1,3 @@
+GymMarket – samlet version 3
+Kendetegn: ingen lanceringsbjælke, "Log ind"-knap, Facebook-import, EU-verificering, testmiljø.
+Tjek på github.com: index.html skal indeholde "fb-import.js?v=3".
