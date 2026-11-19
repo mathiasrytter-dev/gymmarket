@@ -28,9 +28,9 @@
 .reply textarea,#msgBody{width:100%;min-height:90px;padding:10px;border:1px solid #e3e8f1;border-radius:8px;resize:vertical;font:inherit;background:#fff}
 .avrow{display:flex;gap:14px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
 /* Hero med billede */
-.hero{background:linear-gradient(90deg,rgba(22,33,58,.95) 0%,rgba(22,33,58,.8) 40%,rgba(22,33,58,0) 62%),#16213a url("../hero-foto.png?v=4") no-repeat right center / cover !important;border-bottom:4px solid #ff6b2c}
+.hero{background:linear-gradient(90deg,rgba(22,33,58,.95) 0%,rgba(22,33,58,.8) 40%,rgba(22,33,58,0) 62%),#16213a url("../hero-foto.png?v=5") no-repeat right center / cover !important;border-bottom:4px solid #ff6b2c}
 .hero:after{display:none !important}
-@media(max-width:720px){.hero{background:linear-gradient(rgba(22,33,58,.78),rgba(22,33,58,.78)),#16213a url("../hero-foto.png?v=4") no-repeat 88% center / cover !important}}
+@media(max-width:720px){.hero{background:linear-gradient(rgba(22,33,58,.78),rgba(22,33,58,.78)),#16213a url("../hero-foto.png?v=5") no-repeat 88% center / cover !important}}
 .avbtns{display:flex;gap:8px;flex-wrap:wrap}
 #resendBtn:disabled{color:#5b6578;text-decoration:none;cursor:default}
 .cardseller{display:flex;gap:6px;align-items:center}
